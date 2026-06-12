@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from .config import SourceConfig
@@ -124,17 +124,28 @@ def _sort(records: list[ScrapeRecord], column: Any) -> list[ScrapeRecord]:
     return sorted(records, key=sort_key, reverse=descending)
 
 
-def _epoch_to_date(records: list[ScrapeRecord], columns: Any) -> list[ScrapeRecord]:
-    # convert epoch-MILLISECOND columns to plain ISO dates ("2026-07-09"). many JSON
-    # APIs (incl. OSE) give dates as ms-since-1970; this makes them Excel-readable.
+def _epoch_to_date(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
+    # convert epoch-MILLISECOND columns to plain ISO dates ("2026-07-10").
+    #
+    # CRITICAL: an epoch is an absolute instant; turning it into a CALENDAR DATE
+    # depends on the timezone. Market timestamps encode midnight in the EXCHANGE's
+    # zone -- read them in the wrong zone and the date lands a day off. So pass the
+    # exchange's UTC offset. OSE encodes midnight JST, so use tz: 9 (Japan, no DST).
+    #
+    # arg forms:
+    #   [col, ...]                       -> convert those columns in UTC (offset 0)
+    #   {columns: [col, ...], tz: 9}     -> convert in UTC+9 (the correct OSE form)
+    if isinstance(arg, dict):
+        columns, offset = arg.get("columns", []), arg.get("tz", 0)
+    else:
+        columns, offset = arg, 0
     columns = columns if isinstance(columns, list) else [columns]
+    tz = timezone(timedelta(hours=offset))
     for rec in records:
         for col in columns:
             v = rec.fields.get(col)
             if isinstance(v, (int, float)):  # /1000 -> seconds; .date() drops the time
-                rec.fields[col] = (
-                    datetime.fromtimestamp(v / 1000, tz=timezone.utc).date().isoformat()
-                )
+                rec.fields[col] = datetime.fromtimestamp(v / 1000, tz=tz).date().isoformat()
     return records
 
 

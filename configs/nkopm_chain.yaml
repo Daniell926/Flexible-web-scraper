@@ -24,8 +24,10 @@ api:
 options:
   concurrency: 4           # fetch n months at once (network-bound). 1 = sequential.
   processing:
-    # turn the three epoch-millisecond fields into readable ISO dates
-    - epoch_to_date: [trade_date, last_trading_day, maturity_date]
+    # turn the three epoch-millisecond fields into readable ISO dates.
+    # tz: 9 = read them in JST (Japan) -- OSE encodes midnight JST, so UTC would be
+    # a day early (maturity must land on the SQ date, the 2nd Friday of the month).
+    - epoch_to_date: {columns: [trade_date, last_trading_day, maturity_date], tz: 9}
     # add ln(strike/futures) -- the smile's natural x-axis
     - log_moneyness: {strike: strike, futures: futures_price, as: log_moneyness}
 
