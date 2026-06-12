@@ -1,0 +1,30 @@
+# API source -- contract months (限月 / "gengetsu") for an Osaka Exchange product,
+# from the backend JSON API behind oseopc-cloud.qri.jp (a React app, so the page
+# HTML is an empty shell -- we hit its API directly instead).
+#
+# /tradingInfo?code=<code> returns data: [ one row per delivery month ].
+# Browse available <code> values at:  https://apiopc.qri.jp/api/optionsInfo
+#
+# Run it:  python -m scraper ose_futures_months
+name: ose_futures_months
+type: api
+url: https://apiopc.qri.jp/api/tradingInfo
+
+api:
+  params:
+    code: "1321"          # NIKKEI 225 ETF. swap for any code from /optionsInfo
+  records_path: data       # the list of months lives under "data"
+  fields:
+    contract_month: gengetsu          # "202606"
+    delivery_month: deliveryMonthEn   # "Jun/2026"
+    delivery_month_jp: deliveryMonth  # "2026年6月限月"
+    # NOTE: these three are epoch milliseconds (e.g. 1781103600000), not dates yet.
+    trading_day_ms: tradingDay
+    last_trading_day_ms: lastTradingDay
+    maturity_day_ms: maturityDay
+
+options:
+  processing:
+    - drop_empty
+
+output: output/ose_futures_months.xlsx

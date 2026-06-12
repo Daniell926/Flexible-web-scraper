@@ -1,0 +1,33 @@
+# API source -- WTI crude oil spot prices from the US EIA (Energy Information
+# Administration) open-data API. Directly relevant to the oil-derivatives desk:
+# the front-month physical benchmark the paper barrel is priced against.
+#
+# EIA needs a free API key (https://www.eia.gov/opendata/register.php). Drop it
+# in below, then:  python -m scraper wti_eia
+name: wti_eia
+type: api
+url: https://api.eia.gov/v2/petroleum/pri/spt/data/
+
+api:
+  params:
+    api_key: YOUR_EIA_API_KEY_HERE
+    frequency: daily
+    "data[0]": value
+    "facets[product][]": EPCWTI       # WTI crude
+    sort[0][column]: period
+    sort[0][direction]: desc
+    length: 30
+  # EIA wraps rows in {"response": {"data": [ {period, value, ...}, ... ]}}.
+  records_path: response.data
+  fields:
+    date: period
+    price_usd_bbl: value
+    series: series-description
+
+options:
+  processing:
+    - numeric: [price_usd_bbl]
+    - drop_empty
+    - sort: "-date"
+
+output: output/wti_spot.xlsx

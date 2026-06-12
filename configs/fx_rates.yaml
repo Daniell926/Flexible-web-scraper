@@ -1,0 +1,25 @@
+# API source -- the most robust kind: read JSON straight from an endpoint, no
+# HTML parsing to break. This pulls live FX reference rates from the free, no-key
+# Frankfurter API (European Central Bank data).
+#
+# Run it:  python -m scraper fx_rates
+name: fx_rates
+type: api
+url: https://api.frankfurter.app/latest
+
+api:
+  params:
+    base: USD
+  # The response is {"base":"USD","date":"...","rates":{"EUR":0.92,"GBP":0.79,...}}.
+  # "rates" is a dict, so each key/value pair becomes one row.
+  records_path: rates
+  fields:
+    currency: "@key"     # the dict key  -> "EUR"
+    rate: "@value"       # the dict value -> 0.92
+
+options:
+  processing:
+    - drop_empty
+    - sort: "-rate"      # strongest currencies-per-USD first
+
+output: output/fx_rates.xlsx

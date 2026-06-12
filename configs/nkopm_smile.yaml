@@ -1,0 +1,27 @@
+# Nikkei 225 Options implied-vol smile for ONE contract month, from the OSE OPC
+# backend API (code "nkopm" = Nikkei 225 index options -- a name-code, not in the
+# 4-digit /optionsInfo list). The "call"/"put" values ARE implied volatilities (%),
+# per the site's "Implied Volatility CALL/PUT" labels.
+#
+#   GET /priceInfo?code=nkopm&gengetsu=YYYYMM  ->  data.values: [{strikePrice, call, put}]
+#
+# Run it:  python -m scraper nkopm_smile
+name: nkopm_smile
+type: api
+url: https://apiopc.qri.jp/api/priceInfo
+
+api:
+  params:
+    code: nkopm
+    gengetsu: "202607"        # Jul/2026. months from /tradingInfo?code=nkopm
+  records_path: data.values    # the per-strike list lives at data.values
+  fields:
+    strike: strikePrice
+    call_vol: call             # implied volatility %, call side
+    put_vol: put               # implied volatility %, put side
+
+options:
+  processing:
+    - sort: strike             # ascending strike for a clean smile
+
+output: output/nkopm_smile.xlsx

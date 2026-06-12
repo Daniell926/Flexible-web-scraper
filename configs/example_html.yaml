@@ -1,0 +1,25 @@
+# HTML source -- fetch a page and pull values out with CSS selectors. This one
+# scrapes the classic books demo table (a stable, scrape-friendly sandbox) to
+# show the row_selector + per-column selector pattern you'd reuse for any table
+# of quotes, contracts, or listings.
+#
+# Run it:  python -m scraper example_html
+name: example_html
+type: html
+url: https://books.toscrape.com/
+
+options:
+  # One ScrapeRecord per matched element; column selectors run *inside* each.
+  row_selector: "article.product_pod"
+  processing:
+    - strip
+    - numeric: [price]            # "£51.77" -> 51.77
+    - drop_empty
+    - sort: "-price"
+
+selectors:
+  title: "h3 a@title"             # @title -> read the title attribute, not text
+  price: "p.price_color"
+  availability: "p.instock.availability"
+
+output: output/example_html.xlsx

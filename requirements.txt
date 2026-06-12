@@ -1,0 +1,11 @@
+# Core stack -- needed for html and api sources + processing + Excel export.
+requests>=2.31
+beautifulsoup4>=4.12
+pandas>=2.0
+openpyxl>=3.1
+PyYAML>=6.0
+
+# Optional -- only needed for `type: browser` configs (JavaScript-rendered pages).
+# Install separately, then run `playwright install chromium`:
+#   pip install playwright && playwright install chromium
+# playwright>=1.40

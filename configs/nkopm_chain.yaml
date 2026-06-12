@@ -1,0 +1,32 @@
+# Nikkei 225 Options FULL chain: every contract month x every strike, with the
+# month's futures price + expiry dates joined in. Built for vol-curve construction.
+# Uses the custom `ose_chain` source (loops months, joins 3 endpoints per month).
+#
+# Run it:  python -m scraper nkopm_chain     (makes ~50 requests; give it ~30-60s)
+name: nkopm_chain
+type: ose_chain
+url: https://apiopc.qri.jp/api
+
+api:
+  code: nkopm            # Nikkei 225 index options
+  months: all            # all 26 contract months (or an int to cap, e.g. 6)
+  # namespaced paths: month.* (tradingInfo row) / underlier.* / smile.* / row.* (strike)
+  fields:
+    contract_month: month.deliveryMonthEn   # "Jul/2026"
+    futures_price: underlier.refPrice        # the forward F for this month
+    strike: row.strikePrice
+    call_vol: row.call                       # implied vol %, call
+    put_vol: row.put                         # implied vol %, put
+    trade_date: smile.date                   # epoch ms -> date below
+    last_trading_day: month.lastTradingDay   # epoch ms -> date below
+    maturity_date: month.maturityDay         # epoch ms -> date below
+
+options:
+  concurrency: 4           # fetch n months at once (network-bound). 1 = sequential.
+  processing:
+    # turn the three epoch-millisecond fields into readable ISO dates
+    - epoch_to_date: [trade_date, last_trading_day, maturity_date]
+    # add ln(strike/futures) -- the smile's natural x-axis
+    - log_moneyness: {strike: strike, futures: futures_price, as: log_moneyness}
+
+output: output/nkopm_chain.xlsx

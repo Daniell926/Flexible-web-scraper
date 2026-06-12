@@ -1,0 +1,9 @@
+# Virtual environment — never ship this; recreate from requirements.txt
+.venv/
+# Python bytecode caches — regenerated automatically
+__pycache__/
+*.pyc
+# Generated Excel output
+output/
+# Local Claude Code settings — machine-specific
+.claude/
