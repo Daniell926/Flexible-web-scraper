@@ -7,3 +7,5 @@ __pycache__/
 output/
 # Local Claude Code settings — machine-specific
 .claude/
+# macOS junk
+.DS_Store
