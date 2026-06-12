@@ -1,0 +1,5 @@
+# GUI dependencies. Includes the core stack (via -r) plus Streamlit.
+# Install with:  pip install -r requirements-gui.txt
+# Then launch:   streamlit run app.py
+-r requirements.txt
+streamlit>=1.30

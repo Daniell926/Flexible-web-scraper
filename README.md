@@ -44,6 +44,18 @@ python -m scraper fx_rates        # run configs/fx_rates.yaml -> output/fx_rates
 python -m scraper fx_rates -o /tmp/today.xlsx   # override the output path
 ```
 
+## GUI (optional)
+
+A Streamlit front end wraps the same pipeline for non-technical users — pick a
+source from a dropdown, tweak parameters, run, preview the table, download the Excel.
+
+```bash
+pip install -r requirements-gui.txt   # core stack + streamlit
+streamlit run app.py                   # opens in your browser
+```
+
+It's a thin shell over `run_config()` — no scraping logic lives in `app.py`.
+
 ## Adding a new site
 
 Drop a YAML file in `configs/`. No code needed. See the worked examples:

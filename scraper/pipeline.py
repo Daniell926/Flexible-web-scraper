@@ -30,10 +30,18 @@ class RunResult:
 
 
 def run(name: str, output: str | None = None) -> RunResult:
-    """Run the full extract -> process -> export pipeline for one config."""
-    config = load_config(name)  # name -> typed SourceConfig object (reads the yaml)
+    """Run the pipeline for a config NAME (loads configs/<name>.yaml)."""
+    return run_config(load_config(name), output)  # the CLI path: name -> config -> run
 
-    source = get_source(config)             # pick html/api/browser by config.type
+
+def run_config(config: SourceConfig, output: str | None = None) -> RunResult:
+    """Run the pipeline for an already-built config OBJECT.
+
+    Split out from run() so callers that build/modify a SourceConfig in memory --
+    e.g. the GUI letting a user tweak the Nikkei code or month -- can run it without
+    writing a YAML file first.
+    """
+    source = get_source(config)             # pick the source by config.type
     # note: `records` is REASSIGNED each line -- each stage takes the list and returns
     # a new list, so the output of one feeds straight into the next.
     records = source.fetch(config)          # Extract: site -> list[ScrapeRecord]

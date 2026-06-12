@@ -12,7 +12,7 @@ new YAML file in `configs/`, not new code -- see `config.py`.
 from __future__ import annotations
 
 from .config import SourceConfig, list_configs, load_config
-from .pipeline import run
+from .pipeline import run, run_config
 from .records import ScrapeRecord, records_to_frame
 
 __all__ = [
@@ -22,4 +22,5 @@ __all__ = [
     "load_config",
     "records_to_frame",
     "run",
+    "run_config",
 ]
