@@ -14,6 +14,7 @@ remaining keys live in a small "Advanced (raw YAML)" box so nothing is ever lost
 
 from __future__ import annotations
 
+import base64
 import copy
 import traceback
 from pathlib import Path
@@ -62,6 +63,25 @@ def _arg_to_text(a) -> str:
     if isinstance(a, str):
         return a
     return yaml.safe_dump(a, default_flow_style=True, allow_unicode=True).strip()
+
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _auto_download(data: bytes, filename: str) -> None:
+    """Trigger an immediate browser download.
+
+    Streamlit has no native "download without a click" -- a download must come from a
+    user gesture. So we embed the file as a base64 data: URI in a hidden <a download>
+    and click it via JS inside a 0-height component. This runs once, right after a
+    scrape finishes (it's inside the Run block, so it doesn't re-fire on later reruns).
+    """
+    b64 = base64.b64encode(data).decode()
+    st.components.v1.html(
+        f'<a id="auto-dl" download="{filename}" href="data:{_XLSX_MIME};base64,{b64}"></a>'
+        '<script>document.getElementById("auto-dl").click();</script>',
+        height=0,
+    )
 
 
 st.set_page_config(page_title="Flexible Web Scraper", page_icon="📊", layout="wide")
@@ -166,6 +186,10 @@ with st.expander("Configuration", expanded=False):
         )
 
 # --- run -------------------------------------------------------------------
+auto_dl = st.toggle(
+    "Auto-download Excel when finished", value=False,
+    help="Download the file automatically the moment the scrape completes.",
+)
 if st.button("▶ Run scrape", type="primary"):
     try:
         # reassemble each block: start from the Advanced leftovers, then layer the
@@ -216,11 +240,12 @@ if st.button("▶ Run scrape", type="primary"):
         frame = records_to_frame(result.records)
         st.success(f"Scraped {len(result.records):,} rows → `{out_path}`")
         st.dataframe(frame, use_container_width=True, height=420)
-        with open(out_path, "rb") as fh:
-            st.download_button(
-                "⬇ Download Excel", fh, file_name=out_path.name,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
+        data = out_path.read_bytes()
+        st.download_button(
+            "⬇ Download Excel", data, file_name=out_path.name, mime=_XLSX_MIME,
+        )
+        if auto_dl:
+            _auto_download(data, out_path.name)  # fire the download immediately
     except Exception as exc:
         st.error(f"Scrape failed: {exc}")
         with st.expander("Details"):
