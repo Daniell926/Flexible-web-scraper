@@ -1,0 +1,6 @@
+# Streamlit app config (read by both local `streamlit run` and Streamlit Cloud).
+
+[client]
+# "minimal" hides the top-right toolbar clutter (Share, GitHub star/fork, the
+# hamburger ⋮ menu) for a clean end-user view. Other options: auto / developer / viewer.
+toolbarMode = "minimal"
