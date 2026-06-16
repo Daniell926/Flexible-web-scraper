@@ -34,6 +34,38 @@ STEP_NAMES = sorted(_STEPS)  # strip, drop_empty, numeric, sort, log_moneyness, 
 _API_HANDLED = {"code", "months", "fields"}
 _OPT_HANDLED = {"concurrency", "processing", "row_selector"}
 
+# short blurb per source type -- explains what it does and why some config blocks
+# (fields / processing / selectors) are or aren't set for a given source.
+SOURCE_INFO = {
+    "api": (
+        "**JSON API.** Reads one endpoint and maps the JSON to rows. Configure "
+        "`params`, `records_path`, and a **fields** map (column → JSON path); add "
+        "**processing** steps to clean or convert values."
+    ),
+    "ose_chain": (
+        "**OSE options chain.** Joins three Osaka-Exchange endpoints across every "
+        "contract month. Set `code` + `months`; the **fields** map pulls from each "
+        "month/strike, and **processing** converts the epoch dates and adds "
+        "log-moneyness."
+    ),
+    "hkex_hsi": (
+        "**HKEX Hang Seng options report.** Parses HKEX's fixed-width daily report "
+        "into one row per option (month, strike, C/P, settlement, IV%, volume, open "
+        "interest). The source emits a **fixed set of columns**, so there's no "
+        "**fields** map to fill in; the data comes out clean, so no **processing** is "
+        "needed either. Only `date` (`latest` or a `YYMMDD`) is adjustable. Note IV is "
+        "integer-percent and 0 on deep-ITM rows where it isn't meaningful."
+    ),
+    "html": (
+        "**HTML page.** Fetches a page and extracts with CSS **selectors** "
+        "(column → selector); set `row_selector` for the repeating element."
+    ),
+    "browser": (
+        "**JavaScript page.** Like `html`, but renders the page in a real browser "
+        "first (Playwright). Needs Playwright installed; won't run on Streamlit Cloud."
+    ),
+}
+
 
 def _yaml_dump(value: dict) -> str:
     return yaml.safe_dump(value, sort_keys=False, allow_unicode=True).strip() if value else ""
@@ -95,6 +127,9 @@ if not configs:
 
 name = st.selectbox("Source", configs, help="Each is a configs/<name>.yaml file.")
 base = load_config(name)  # file values -> defaults for every widget below
+
+with st.expander(f"ℹ️ About this source — `{base.type}`", expanded=False):
+    st.markdown(SOURCE_INFO.get(base.type, f"Source type `{base.type}`."))
 
 # collected from the widgets, consumed by the Run handler
 in_code = in_months = in_row_selector = None
