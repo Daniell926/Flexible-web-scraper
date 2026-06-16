@@ -9,3 +9,5 @@ output/
 .claude/
 # macOS junk
 .DS_Store
+# Local working notes
+status.md
