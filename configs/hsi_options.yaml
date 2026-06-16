@@ -1,0 +1,18 @@
+# Hang Seng Index (HSI) options -- whole chain from the HKEX free end-of-day report
+# (a fixed-width text file, parsed by the custom `hkex_hsi` source). One file gives
+# every expiry month x strike x call/put, with settlement price, IV%, volume, OI.
+#
+# Run it:  python -m scraper hsi_options
+name: hsi_options
+type: hkex_hsi
+url: https://www.hkex.com.hk/eng/stat/dmstat/dayrpt
+
+api:
+  date: latest          # or a specific report date as YYMMDD (e.g. 260615)
+
+# Emits every contract (one row per option). Columns: contract_month, strike,
+# option_type (C/P), settlement, iv (IV% integer), volume, open_interest, trade_date.
+# IV is 0 on deep-ITM rows where it isn't meaningful -- filter iv > 0 in Excel for
+# just the curve points (~94% of rows have a real IV).
+
+output: output/hsi_options.xlsx

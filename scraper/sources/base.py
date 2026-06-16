@@ -51,7 +51,12 @@ def get_source(config: SourceConfig) -> Source:
         from .ose_chain import OseChainSource
 
         return OseChainSource()
+    if kind == "hkex_hsi":
+        # fixed-width-text parser for the HKEX HSI options daily report.
+        from .hkex_hsi import HkexHsiSource
+
+        return HkexHsiSource()
     raise ValueError(
         f"Unknown source type '{config.type}' "
-        "(expected: html, browser, api, ose_chain)."
+        "(expected: html, browser, api, ose_chain, hkex_hsi)."
     )

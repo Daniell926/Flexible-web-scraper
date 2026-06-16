@@ -28,7 +28,7 @@ from scraper.pipeline import run_config
 from scraper.processing import _STEPS  # the registry of valid processing step names
 from scraper.records import records_to_frame
 
-SOURCE_TYPES = ["api", "ose_chain", "html", "browser"]
+SOURCE_TYPES = ["api", "ose_chain", "hkex_hsi", "html", "browser"]
 STEP_NAMES = sorted(_STEPS)  # strip, drop_empty, numeric, sort, log_moneyness, ...
 # config keys we render with dedicated widgets -- the rest fall through to "Advanced".
 _API_HANDLED = {"code", "months", "fields"}
@@ -107,7 +107,7 @@ with st.expander("Configuration", expanded=False):
         index=SOURCE_TYPES.index(base.type) if base.type in SOURCE_TYPES else 0,
         help="Which extractor to use. Drives which settings below apply.",
     )
-    api_used = sel_type in {"api", "ose_chain"}
+    api_used = sel_type in {"api", "ose_chain", "hkex_hsi"}
     sel_used = sel_type in {"html", "browser"}
 
     st.markdown("**Core**")
