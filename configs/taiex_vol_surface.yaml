@@ -1,0 +1,32 @@
+# TAIEX (TXO) option vol surface -- from TAIFEX's free end-of-day CSVs.
+#
+# TAIFEX publishes the option PREMIUM (daily settlement) but NOT implied vols, so
+# we back the vol out ourselves: the custom `taifex` source pulls the TXO options
+# AND the TX index-futures files, joins each future's settlement onto its option
+# month as the forward, then the `implied_vol` step inverts Black-76 per contract.
+#
+# Monthly standard expiries only (weeklies excluded). One row per expiry x strike
+# x call/put, with the solved iv (in %) and log-moneyness for the smile x-axis.
+#
+# Run it:  python -m scraper taiex_vol_surface
+name: taiex_vol_surface
+type: taifex
+url: https://www.taifex.com.tw/cht/3
+
+api:
+  date: latest          # or a trading day as YYYY/MM/DD (e.g. 2026/06/24)
+
+options:
+  processing:
+    - implied_vol:
+        price: settlement     # daily settlement = the premium we invert
+        forward: forward      # TX futures settlement for the option's month
+        strike: strike
+        type: option_type     # C / P
+        t: t_years            # time to expiry, in years
+        rate: 0.015           # risk-free assumption (~Taiwan 1.5%)
+        as: iv                # output column, vol in %
+    - log_moneyness: {strike: strike, futures: forward, as: log_moneyness}
+    - sort: strike
+
+output: output/taiex_vol_surface.xlsx

@@ -28,7 +28,7 @@ from scraper.pipeline import run_config
 from scraper.processing import _STEPS  # the registry of valid processing step names
 from scraper.records import records_to_frame
 
-SOURCE_TYPES = ["api", "ose_chain", "hkex_hsi", "html", "browser"]
+SOURCE_TYPES = ["api", "ose_chain", "hkex_hsi", "taifex", "html", "browser"]
 STEP_NAMES = sorted(_STEPS)  # strip, drop_empty, numeric, sort, log_moneyness, ...
 # config keys we render with dedicated widgets -- the rest fall through to "Advanced".
 _API_HANDLED = {"code", "months", "fields"}
@@ -55,6 +55,16 @@ SOURCE_INFO = {
         "**fields** map to fill in; the data comes out clean, so no **processing** is "
         "needed either. Only `date` (`latest` or a `YYMMDD`) is adjustable. Note IV is "
         "integer-percent and 0 on deep-ITM rows where it isn't meaningful."
+    ),
+    "taifex": (
+        "**TAIFEX TAIEX options.** Pulls TAIFEX's end-of-day TXO options **and** TX "
+        "index-futures CSVs, joins each future's settlement onto its option month as "
+        "the forward. TAIFEX doesn't publish vols, so the **implied_vol** processing "
+        "step inverts Black-76 on each premium to get the vol (in %). Monthly standard "
+        "expiries only; one row per expiry × strike × call/put. The source emits a "
+        "**fixed set of columns**, so there's no **fields** map — only `date` (`latest` "
+        "or a `YYYY/MM/DD`) is adjustable. The vol solve and log-moneyness live in "
+        "**processing**."
     ),
     "html": (
         "**HTML page.** Fetches a page and extracts with CSS **selectors** "
@@ -142,7 +152,7 @@ with st.expander("Configuration", expanded=False):
         index=SOURCE_TYPES.index(base.type) if base.type in SOURCE_TYPES else 0,
         help="Which extractor to use. Drives which settings below apply.",
     )
-    api_used = sel_type in {"api", "ose_chain", "hkex_hsi"}
+    api_used = sel_type in {"api", "ose_chain", "hkex_hsi", "taifex"}
     sel_used = sel_type in {"html", "browser"}
 
     st.markdown("**Core**")

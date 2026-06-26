@@ -166,6 +166,110 @@ def _log_moneyness(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
     return records
 
 
+def _norm_cdf(x: float) -> float:
+    """Standard-normal CDF via the error function (no SciPy dependency)."""
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _norm_pdf(x: float) -> float:
+    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
+
+
+def _black76_price(is_call: bool, F: float, K: float, T: float, r: float, sigma: float) -> float:
+    """European option on a forward (Black-76): the model premium for a given vol."""
+    disc = math.exp(-r * T)
+    vol = sigma * math.sqrt(T)
+    d1 = (math.log(F / K) + 0.5 * vol * vol) / vol
+    d2 = d1 - vol
+    if is_call:
+        return disc * (F * _norm_cdf(d1) - K * _norm_cdf(d2))
+    return disc * (K * _norm_cdf(-d2) - F * _norm_cdf(-d1))
+
+
+def _implied_vol_one(is_call: bool, price: float, F: float, K: float, T: float, r: float) -> Any:
+    """Invert Black-76 for sigma given a premium. None if it can't be solved.
+
+    Newton-Raphson on vega, with a bisection fallback when Newton wanders out of
+    bounds. Returns None below the no-arbitrage floor (price <= intrinsic) or on
+    any bad input -- a missing vol, not a crash or a garbage number.
+    """
+    if not (price and F and K and T and price > 0 and F > 0 and K > 0 and T > 0):
+        return None
+    disc = math.exp(-r * T)
+    intrinsic = disc * (F - K) if is_call else disc * (K - F)
+    # below intrinsic there's no real vol; above the forward's discounted value a
+    # call can't trade either. clamp out both to avoid a non-converging solve.
+    if price <= max(intrinsic, 0.0) or price >= disc * (F if is_call else K):
+        return None
+
+    sqrtT = math.sqrt(T)
+    sigma = 0.2  # a sensible starting guess (~20% vol)
+    lo, hi = 1e-4, 5.0  # bracket for the fallback: 0.01% .. 500%
+    for _ in range(100):
+        diff = _black76_price(is_call, F, K, T, r, sigma) - price
+        if abs(diff) < 1e-6:
+            return round(sigma * 100, 4)  # report as a percent, e.g. 18.53
+        vol = sigma * sqrtT
+        d1 = (math.log(F / K) + 0.5 * vol * vol) / vol
+        vega = disc * F * sqrtT * _norm_pdf(d1)
+        # keep the bracket tight around the root for the fallback
+        if diff > 0:
+            hi = sigma
+        else:
+            lo = sigma
+        if vega < 1e-8:  # vega too small for a reliable Newton step -> bisect
+            sigma = 0.5 * (lo + hi)
+            continue
+        step = diff / vega
+        sigma -= step
+        if not (lo <= sigma <= hi):  # Newton left the bracket -> bisect instead
+            sigma = 0.5 * (lo + hi)
+    return None  # didn't converge
+
+
+def _implied_vol(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
+    """Add an implied-vol column by inverting Black-76 on each option's premium.
+
+    Markets like TAIFEX publish the premium but not the vol; this backs the vol
+    out. Each row needs a forward, strike, premium, option type, and time to
+    expiry (a year-fraction). The risk-free rate is a single assumption.
+
+        implied_vol:
+          price: settlement      # the premium column
+          forward: forward       # forward/underlier column
+          strike: strike
+          type: option_type      # call/put flag (C/P, call/put, 1/-1...)
+          t: t_years             # time to expiry, in years
+          rate: 0.015            # risk-free rate (default 1.5%)
+          as: iv                 # output column (vol in %)
+    """
+    arg = arg or {}
+    p_col = arg.get("price", "settlement")
+    f_col = arg.get("forward", "forward")
+    k_col = arg.get("strike", "strike")
+    type_col = arg.get("type", "option_type")
+    t_col = arg.get("t", "t_years")
+    rate = float(arg.get("rate", 0.015))
+    out_col = arg.get("as", "iv")
+
+    for rec in records:
+        flag = str(rec.fields.get(type_col, "")).strip().lower()
+        is_call = flag in ("c", "call", "1", "買權")
+        try:
+            iv = _implied_vol_one(
+                is_call,
+                float(rec.fields.get(p_col)),
+                float(rec.fields.get(f_col)),
+                float(rec.fields.get(k_col)),
+                float(rec.fields.get(t_col)),
+                rate,
+            )
+        except (TypeError, ValueError):
+            iv = None  # a missing/non-numeric input -> blank vol, not a crash
+        rec.fields[out_col] = iv
+    return records
+
+
 _STEPS: dict[str, Step] = {
     "strip": _strip,
     "drop_empty": _drop_empty,
@@ -175,6 +279,7 @@ _STEPS: dict[str, Step] = {
     "sort": _sort,
     "epoch_to_date": _epoch_to_date,
     "log_moneyness": _log_moneyness,
+    "implied_vol": _implied_vol,
 }
 
 

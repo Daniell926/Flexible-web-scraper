@@ -56,7 +56,12 @@ def get_source(config: SourceConfig) -> Source:
         from .hkex_hsi import HkexHsiSource
 
         return HkexHsiSource()
+    if kind == "taifex":
+        # TAIFEX TXO options + TX futures join (forward for IV inversion).
+        from .taifex import TaifexSource
+
+        return TaifexSource()
     raise ValueError(
         f"Unknown source type '{config.type}' "
-        "(expected: html, browser, api, ose_chain, hkex_hsi)."
+        "(expected: html, browser, api, ose_chain, hkex_hsi, taifex)."
     )
