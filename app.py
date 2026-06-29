@@ -152,6 +152,24 @@ edited_fields = edited_selectors = edited_proc = None
 # "compute vols" toggle drops these so the source can emit raw inputs only --
 # useful when you'd rather feed the premiums to your own in-house vol model.
 _IV_STEPS = {"implied_vol", "vega", "log_moneyness"}
+# columns those steps produce -- so we can also drop a `sort` that targets one
+# of them (e.g. `sort: -vega`) when the vols aren't being computed.
+_IV_COLS = {"iv", "vega", "log_moneyness"}
+
+
+def _drop_iv_rows(rows: list[dict]) -> list[dict]:
+    """Remove the vol-computing rows from a processing-steps table (raw mode).
+
+    Drops the implied_vol/vega/log_moneyness steps and any `sort` on a column
+    those steps produce, so the on-screen table matches what the toggle does.
+    """
+    def is_iv(row: dict) -> bool:
+        step = row["step"]
+        if step in _IV_STEPS:
+            return True
+        return step == "sort" and str(row["argument"]).lstrip("-").strip() in _IV_COLS
+
+    return [r for r in rows if not is_iv(r)]
 
 with st.expander("Configuration", expanded=False):
     sel_type = st.selectbox(
@@ -228,9 +246,17 @@ with st.expander("Configuration", expanded=False):
         else:  # a {name: arg} mapping
             (sname, sarg), = step.items()
             proc_rows.append({"step": sname, "argument": _arg_to_text(sarg)})
+    # when the vols toggle is OFF, actually remove the vol-computing rows so the
+    # table on screen shows exactly what will run (no hidden run-time stripping).
+    if compute_iv is False:
+        proc_rows = _drop_iv_rows(proc_rows)
+        st.caption("↳ vol steps hidden — turn on **Compute implied vols** to add them back.")
     proc_df = pd.DataFrame(proc_rows, columns=["step", "argument"])
     edited_proc = st.data_editor(
-        proc_df, num_rows="dynamic", use_container_width=True, key=f"proc::{name}",
+        # the toggle state is part of the key, so flipping it reseeds the table
+        # cleanly (no stale edits carried across the on/off switch).
+        proc_df, num_rows="dynamic", use_container_width=True,
+        key=f"proc::{name}::{compute_iv}",
         column_config={
             "step": st.column_config.SelectboxColumn("step", options=STEP_NAMES, required=True),
             "argument": st.column_config.TextColumn("argument (YAML, e.g. [price, rate] or -rate)"),
@@ -285,11 +311,8 @@ if st.button("▶ Run scrape", type="primary"):
                 continue
             arg = _cell(r["argument"])
             processing.append(step if arg == "" else {step: yaml.safe_load(arg)})
-        if compute_iv is False:  # raw mode: drop the vol-computing steps entirely
-            processing = [
-                s for s in processing
-                if (next(iter(s)) if isinstance(s, dict) else s) not in _IV_STEPS
-            ]
+        # no run-time stripping needed: the steps table already reflects the toggle,
+        # so whatever is shown is exactly what runs.
         if processing:
             options_block["processing"] = processing
 
