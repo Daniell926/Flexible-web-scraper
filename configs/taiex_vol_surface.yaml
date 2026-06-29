@@ -8,6 +8,11 @@
 # Monthly standard expiries only (weeklies excluded). One row per expiry x strike
 # x call/put, with the solved iv (in %) and log-moneyness for the smile x-axis.
 #
+# RAW MODE: to emit just the scraped inputs (premium, forward, strike, t_years) with
+# NO vols -- e.g. to feed your own in-house vol model, or to compare against it --
+# drop the `implied_vol` and `log_moneyness` steps below. In the Streamlit GUI this
+# is the "Compute implied vols" toggle; no need to edit the file.
+#
 # Run it:  python -m scraper taiex_vol_surface
 name: taiex_vol_surface
 type: taifex

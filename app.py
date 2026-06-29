@@ -63,8 +63,9 @@ SOURCE_INFO = {
         "step inverts Black-76 on each premium to get the vol (in %). Monthly standard "
         "expiries only; one row per expiry × strike × call/put. The source emits a "
         "**fixed set of columns**, so there's no **fields** map — only `date` (`latest` "
-        "or a `YYYY/MM/DD`) is adjustable. The vol solve and log-moneyness live in "
-        "**processing**."
+        "or a `YYYY/MM/DD`) is adjustable. Use the **Compute implied vols** toggle to "
+        "switch between solved vols and raw inputs only (premium, forward, strike, "
+        "t_years) — handy for feeding your own vol model or comparing against it."
     ),
     "html": (
         "**HTML page.** Fetches a page and extracts with CSS **selectors** "
@@ -144,7 +145,13 @@ with st.expander(f"ℹ️ About this source — `{base.type}`", expanded=False):
 # collected from the widgets, consumed by the Run handler
 in_code = in_months = in_row_selector = None
 concurrency = None
+compute_iv = None
 edited_fields = edited_selectors = edited_proc = None
+
+# processing steps that COMPUTE implied vols (added by the taifex config). The
+# "compute vols" toggle drops these so the source can emit raw inputs only --
+# useful when you'd rather feed the premiums to your own in-house vol model.
+_IV_STEPS = {"implied_vol", "log_moneyness"}
 
 with st.expander("Configuration", expanded=False):
     sel_type = st.selectbox(
@@ -199,6 +206,18 @@ with st.expander("Configuration", expanded=False):
         concurrency = st.slider(
             "concurrency — months fetched at once", 1, 12,
             int(base.options.get("concurrency", 1)),
+        )
+    if sel_type == "taifex":
+        # default the toggle to whatever the loaded config does (on if it has the
+        # implied_vol step), so the widget mirrors the file.
+        _has_iv = any(
+            (next(iter(s)) if isinstance(s, dict) else s) == "implied_vol"
+            for s in base.options.get("processing", [])
+        )
+        compute_iv = st.toggle(
+            "Compute implied vols (Black-76)", value=_has_iv,
+            help="On: add the solved `iv` (and `log_moneyness`) columns. Off: emit the "
+                 "raw inputs only (premium, forward, strike, t_years) for your own vol model.",
         )
 
     st.markdown("Processing steps — pick a step, give its argument (blank if none):")
@@ -266,6 +285,11 @@ if st.button("▶ Run scrape", type="primary"):
                 continue
             arg = _cell(r["argument"])
             processing.append(step if arg == "" else {step: yaml.safe_load(arg)})
+        if compute_iv is False:  # raw mode: drop the vol-computing steps entirely
+            processing = [
+                s for s in processing
+                if (next(iter(s)) if isinstance(s, dict) else s) not in _IV_STEPS
+            ]
         if processing:
             options_block["processing"] = processing
 
