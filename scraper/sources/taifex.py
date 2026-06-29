@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import csv
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -93,6 +93,11 @@ def _futures_forward(rows: list[list[str]]) -> dict[str, Any]:
     return forward
 
 
+def _has_day_session(rows: list[list[str]]) -> bool:
+    """True if the options rows contain any regular day-session line."""
+    return any(len(r) > 17 and r[17].strip() == _DAY_SESSION for r in rows)
+
+
 def _t_years(trade_date: str, expiry_date: str) -> Any:
     """Calendar year-fraction from the trade day to the contract expiry (YYYYMMDD)."""
     try:
@@ -113,14 +118,26 @@ class TaifexSource:
 
         day = str(config.api.get("date", "latest"))
         if day.lower() in ("latest", ""):
-            # the file only carries trading days; default to today and let the user
-            # pass an explicit YYYY/MM/DD if today's report isn't published yet.
-            day = date.today().strftime("%Y/%m/%d")
+            # "latest" must mean the latest SETTLED day, not just today: only the
+            # day session (一般) carries a settlement price, and it isn't published
+            # until after the close. Today's file often holds only the after-hours
+            # session (no settlement -> nothing to invert), and weekends/holidays
+            # have no day session at all. So walk back until we find a day with
+            # day-session data. `lookback` caps the search (default ~10 days).
+            lookback = int(config.options.get("lookback", 10))
+            opt_rows: list[list[str]] = []
+            for back in range(lookback):
+                day = (date.today() - timedelta(days=back)).strftime("%Y/%m/%d")
+                opt_rows = _fetch_csv(f"{base}/optDataDown", "TXO", day, timeout)
+                if _has_day_session(opt_rows):
+                    break
+        else:
+            opt_rows = _fetch_csv(f"{base}/optDataDown", "TXO", day, timeout)
 
+        # futures for the SAME resolved day, so the forward matches the options.
         fut_rows = _fetch_csv(f"{base}/futDataDown", "TX", day, timeout)
         forward = _futures_forward(fut_rows)
 
-        opt_rows = _fetch_csv(f"{base}/optDataDown", "TXO", day, timeout)
         opt_url = f"{base}/optDataDown?commodity_id=TXO&date={day}"
         scraped_at = datetime.now(timezone.utc)
 
