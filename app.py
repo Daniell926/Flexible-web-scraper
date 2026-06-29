@@ -28,7 +28,7 @@ from scraper.pipeline import run_config
 from scraper.processing import _STEPS  # the registry of valid processing step names
 from scraper.records import records_to_frame
 
-SOURCE_TYPES = ["api", "ose_chain", "hkex_hsi", "taifex", "html", "browser"]
+SOURCE_TYPES = ["api", "ose_chain", "hkex_hsi", "taifex", "taifex_live", "html", "browser"]
 STEP_NAMES = sorted(_STEPS)  # strip, drop_empty, numeric, sort, log_moneyness, ...
 # config keys we render with dedicated widgets -- the rest fall through to "Advanced".
 _API_HANDLED = {"code", "months", "fields"}
@@ -66,6 +66,15 @@ SOURCE_INFO = {
         "or a `YYYY/MM/DD`) is adjustable. Use the **Compute implied vols** toggle to "
         "switch between solved vols and raw inputs only (premium, forward, strike, "
         "t_years) — handy for feeding your own vol model or comparing against it."
+    ),
+    "taifex_live": (
+        "**TAIFEX TAIEX options — live (15-min delayed).** Same surface as `taifex` "
+        "but intraday: pulls TAIFEX's MIS delayed quote feed and uses the **bid-ask "
+        "midpoint** as the premium (joining the live TXF futures mid as the forward), "
+        "then inverts Black-76. Monthly standard expiries only; one row per expiry × "
+        "strike × call/put with bid, ask, mid, iv, vega. Only `session` (`N` day / `O` "
+        "after-hours) is adjustable. Use the **Compute implied vols** toggle to switch "
+        "between solved vols and raw quotes (bid, ask, mid, forward, t_years)."
     ),
     "html": (
         "**HTML page.** Fetches a page and extracts with CSS **selectors** "
@@ -177,7 +186,7 @@ with st.expander("Configuration", expanded=False):
         index=SOURCE_TYPES.index(base.type) if base.type in SOURCE_TYPES else 0,
         help="Which extractor to use. Drives which settings below apply.",
     )
-    api_used = sel_type in {"api", "ose_chain", "hkex_hsi", "taifex"}
+    api_used = sel_type in {"api", "ose_chain", "hkex_hsi", "taifex", "taifex_live"}
     sel_used = sel_type in {"html", "browser"}
 
     st.markdown("**Core**")
@@ -225,7 +234,7 @@ with st.expander("Configuration", expanded=False):
             "concurrency — months fetched at once", 1, 12,
             int(base.options.get("concurrency", 1)),
         )
-    if sel_type == "taifex":
+    if sel_type in {"taifex", "taifex_live"}:
         # default the toggle to whatever the loaded config does (on if it has the
         # implied_vol step), so the widget mirrors the file.
         _has_iv = any(

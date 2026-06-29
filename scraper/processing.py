@@ -113,15 +113,13 @@ def _sort(records: list[ScrapeRecord], column: Any) -> list[ScrapeRecord]:
     descending = isinstance(column, str) and column.startswith("-")
     key = column[1:] if descending else column
 
-    # sorted() calls this on each record to get the value to order by.
-    def sort_key(rec: ScrapeRecord):
-        value = rec.fields.get(key)
-        # return a TUPLE: (is-it-None?, value). False(0) sorts before True(1), so real
-        # values come before None. comparing the tuple's first item avoids python's
-        # "can't compare None to a number" error when some cells are missing.
-        return (value is None, value)
-
-    return sorted(records, key=sort_key, reverse=descending)
+    # split out rows missing the column so they ALWAYS land last, in either
+    # direction. (a single sorted(reverse=True) would flip a None-last tuple to
+    # None-FIRST, floating the blanks to the top -- wrong for e.g. `sort: -vega`.)
+    present = [rec for rec in records if rec.fields.get(key) is not None]
+    missing = [rec for rec in records if rec.fields.get(key) is None]
+    present.sort(key=lambda rec: rec.fields.get(key), reverse=descending)
+    return present + missing
 
 
 def _epoch_to_date(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:

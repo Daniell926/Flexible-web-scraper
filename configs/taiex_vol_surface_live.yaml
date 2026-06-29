@@ -1,0 +1,37 @@
+# TAIEX (TXO) INTRADAY vol surface -- live (15-min delayed) quotes from TAIFEX's
+# MIS feed, using the BID-ASK MIDPOINT as the premium (vs. the end-of-day
+# settlement used by `taiex_vol_surface`). The custom `taifex_live` source pulls
+# the MIS option + TXF futures quotes, joins each future's mid as the forward,
+# then the same implied_vol -> vega -> log_moneyness steps build the surface.
+#
+# Monthly standard expiries only. One row per expiry x strike x call/put with
+# bid, ask, mid, the solved iv (%), vega, and log-moneyness.
+#
+# RAW MODE: drop the implied_vol/vega/log_moneyness steps (or use the GUI's
+# "Compute implied vols" toggle) to emit just the raw quotes (bid, ask, mid,
+# forward, t_years) for your own in-house vol model.
+#
+# Run it:  python -m scraper taiex_vol_surface_live
+name: taiex_vol_surface_live
+type: taifex_live
+url: https://mis.taifex.com.tw/futures/api
+
+api:
+  session: N            # N = regular day session (default), O = after-hours
+
+options:
+  processing:
+    - implied_vol:
+        price: mid            # bid-ask midpoint = the premium we invert
+        forward: forward      # TXF futures mid for the option's month
+        strike: strike
+        type: option_type     # C / P
+        t: t_years            # time to expiry, in years
+        rate: 0.015           # risk-free assumption (~Taiwan 1.5%)
+        as: iv                # output column, vol in %
+    - vega: {forward: forward, strike: strike, t: t_years, vol: iv, as: vega}
+    - log_moneyness: {strike: strike, futures: forward, as: log_moneyness}
+    # sort by vega DESCENDING so the most reliable near-the-money rows come first.
+    - sort: -vega
+
+output: output/taiex_vol_surface_live.xlsx

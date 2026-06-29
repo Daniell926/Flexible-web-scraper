@@ -61,7 +61,12 @@ def get_source(config: SourceConfig) -> Source:
         from .taifex import TaifexSource
 
         return TaifexSource()
+    if kind == "taifex_live":
+        # TAIFEX MIS live (15-min delayed) quotes; bid-ask midpoint as the premium.
+        from .taifex_live import TaifexLiveSource
+
+        return TaifexLiveSource()
     raise ValueError(
         f"Unknown source type '{config.type}' "
-        "(expected: html, browser, api, ose_chain, hkex_hsi, taifex)."
+        "(expected: html, browser, api, ose_chain, hkex_hsi, taifex, taifex_live)."
     )
