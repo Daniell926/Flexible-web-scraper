@@ -151,7 +151,7 @@ edited_fields = edited_selectors = edited_proc = None
 # processing steps that COMPUTE implied vols (added by the taifex config). The
 # "compute vols" toggle drops these so the source can emit raw inputs only --
 # useful when you'd rather feed the premiums to your own in-house vol model.
-_IV_STEPS = {"implied_vol", "log_moneyness"}
+_IV_STEPS = {"implied_vol", "vega", "log_moneyness"}
 
 with st.expander("Configuration", expanded=False):
     sel_type = st.selectbox(

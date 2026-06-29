@@ -270,6 +270,53 @@ def _implied_vol(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
     return records
 
 
+def _vega(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
+    """Add a Black-76 vega column: the premium's sensitivity to vol.
+
+    Vega peaks at-the-money and decays toward zero in the wings, so it doubles as
+    a DATA-QUALITY score: high vega = the premium carries a strong, well-
+    conditioned vol signal (a trustworthy implied vol); near-zero vega = vol can't
+    be read reliably off this strike. Sort by it descending to put the most
+    reliable rows first. Vega is identical for a call and a put, so no type is
+    needed. It's evaluated at the `vol` column (a percent vol, e.g. the solved iv).
+
+        vega:
+          forward: forward
+          strike: strike
+          t: t_years
+          vol: iv            # vol to evaluate at, in % (default the solved iv)
+          rate: 0.015
+          as: vega           # output: premium points per 1 vol-point (1%) move
+    """
+    arg = arg or {}
+    f_col = arg.get("forward", "forward")
+    k_col = arg.get("strike", "strike")
+    t_col = arg.get("t", "t_years")
+    vol_col = arg.get("vol", "iv")
+    rate = float(arg.get("rate", 0.015))
+    out_col = arg.get("as", "vega")
+
+    for rec in records:
+        try:
+            F = float(rec.fields.get(f_col))
+            K = float(rec.fields.get(k_col))
+            T = float(rec.fields.get(t_col))
+            sigma = float(rec.fields.get(vol_col)) / 100.0  # iv is a percent
+        except (TypeError, ValueError):
+            rec.fields[out_col] = None  # missing iv/inputs -> blank, not a crash
+            continue
+        if not (F > 0 and K > 0 and T > 0 and sigma > 0):
+            rec.fields[out_col] = None
+            continue
+        vol = sigma * math.sqrt(T)
+        d1 = (math.log(F / K) + 0.5 * vol * vol) / vol
+        raw = math.exp(-rate * T) * F * math.sqrt(T) * _norm_pdf(d1)
+        # raw vega is d(premium)/d(sigma) for sigma in decimals; *0.01 rescales it
+        # to "premium points per 1 vol-point (1%) move", the readable convention.
+        rec.fields[out_col] = round(raw * 0.01, 4)
+    return records
+
+
 _STEPS: dict[str, Step] = {
     "strip": _strip,
     "drop_empty": _drop_empty,
@@ -280,6 +327,7 @@ _STEPS: dict[str, Step] = {
     "epoch_to_date": _epoch_to_date,
     "log_moneyness": _log_moneyness,
     "implied_vol": _implied_vol,
+    "vega": _vega,
 }
 
 

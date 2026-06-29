@@ -31,7 +31,11 @@ options:
         t: t_years            # time to expiry, in years
         rate: 0.015           # risk-free assumption (~Taiwan 1.5%)
         as: iv                # output column, vol in %
+    - vega: {forward: forward, strike: strike, t: t_years, vol: iv, as: vega}
     - log_moneyness: {strike: strike, futures: forward, as: log_moneyness}
-    - sort: strike
+    # sort by vega DESCENDING: vega measures how reliably vol can be read off a
+    # strike, so the most trustworthy rows (near-the-money) come first; the noisy
+    # deep wings sink to the bottom.
+    - sort: -vega
 
 output: output/taiex_vol_surface.xlsx
