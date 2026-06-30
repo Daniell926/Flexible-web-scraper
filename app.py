@@ -160,7 +160,7 @@ edited_fields = edited_selectors = edited_proc = None
 # processing steps that COMPUTE implied vols (added by the taifex config). The
 # "compute vols" toggle drops these so the source can emit raw inputs only --
 # useful when you'd rather feed the premiums to your own in-house vol model.
-_IV_STEPS = {"implied_vol", "vega", "log_moneyness"}
+_IV_STEPS = {"implied_vol", "vega", "log_moneyness", "vol_surface_grid"}
 # columns those steps produce -- so we can also drop a `sort` that targets one
 # of them (e.g. `sort: -vega`) when the vols aren't being computed.
 _IV_COLS = {"iv", "vega", "log_moneyness"}

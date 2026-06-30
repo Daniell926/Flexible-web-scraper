@@ -1,0 +1,42 @@
+# TAIEX (TXO) vol SURFACE GRID -- the trader's-eye view: expiries down the side,
+# moneyness (strike / forward) across the top, implied vol in each cell.
+#
+# Built on the end-of-day `taifex` source: invert Black-76 to get per-contract
+# vols, then `vol_surface_grid` pivots them into the matrix, interpolating the IV
+# at each target moneyness from the OTM smile (real strikes don't land exactly on
+# 0.95 x forward, so we interpolate). One row per expiry, nearest first.
+#
+# Each column header is a moneyness multiple of THAT expiry's forward: 1.00 = ATM,
+# 0.90 = a strike 10% below the forward, 1.10 = 10% above.
+#
+# Run it:  python -m scraper taiex_vol_grid
+#   (for the intraday version: set type=taifex_live, url=https://mis.taifex.com.tw/
+#    futures/api, and implied_vol price: mid instead of settlement.)
+name: taiex_vol_grid
+type: taifex
+url: https://www.taifex.com.tw/cht/3
+
+api:
+  date: latest          # last settled day; or a trading day as YYYY/MM/DD
+
+options:
+  processing:
+    - implied_vol:
+        price: settlement
+        forward: forward
+        strike: strike
+        type: option_type
+        t: t_years
+        rate: 0.015
+        as: iv
+    - vol_surface_grid:
+        moneyness: [0.90, 0.95, 1.00, 1.05, 1.10]
+        forward: forward
+        strike: strike
+        iv: iv
+        type: option_type
+        expiry: expiry
+        t: t_years
+        expiry_date: expiry_date
+
+output: output/taiex_vol_grid.xlsx

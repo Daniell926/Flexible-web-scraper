@@ -315,6 +315,97 @@ def _vega(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
     return records
 
 
+def _interp(points: list[tuple[float, float]], x: float) -> Any:
+    """Linear-interpolate y at x over sorted (x, y) points; None if out of range."""
+    if len(points) < 2 or x < points[0][0] or x > points[-1][0]:
+        return None
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if x0 <= x <= x1:
+            if x1 == x0:
+                return round(y0, 4)
+            return round(y0 + (y1 - y0) * (x - x0) / (x1 - x0), 4)
+    return None
+
+
+def _vol_surface_grid(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecord]:
+    """Pivot a long option chain into a vol SURFACE GRID: expiry x moneyness.
+
+    Reshapes one-row-per-contract into one-row-per-expiry, with a column for each
+    target moneyness level (strike / forward). Each cell is the implied vol at
+    that moneyness, linearly interpolated from the smile -- because real strikes
+    don't land exactly on 0.95 x forward etc.
+
+    The smile per expiry is built from the OTM side (puts where strike <= forward,
+    calls where strike > forward), which is the liquid/reliable wing; the ATM
+    columns naturally blend the two via interpolation. Rows come out ordered by
+    time to expiry (nearest first / top).
+
+        vol_surface_grid:
+          moneyness: [0.90, 0.95, 1.00, 1.05, 1.10]   # strike/forward columns
+          forward: forward
+          strike: strike
+          iv: iv
+          type: option_type     # to pick the OTM side (C/P)
+          expiry: expiry        # group key (one row per distinct value)
+          t: t_years            # passthrough + sort key
+          expiry_date: expiry_date
+    """
+    arg = arg or {}
+    levels = [float(x) for x in (arg.get("moneyness") or [0.90, 0.95, 1.00, 1.05, 1.10])]
+    f_col = arg.get("forward", "forward")
+    k_col = arg.get("strike", "strike")
+    iv_col = arg.get("iv", "iv")
+    type_col = arg.get("type", "option_type")
+    exp_col = arg.get("expiry", "expiry")
+    t_col = arg.get("t", "t_years")
+    expd_col = arg.get("expiry_date", "expiry_date")
+
+    # group rows by expiry, preserving first-seen order
+    groups: dict[Any, list[ScrapeRecord]] = {}
+    for rec in records:
+        groups.setdefault(rec.fields.get(exp_col), []).append(rec)
+
+    out: list[ScrapeRecord] = []
+    for expiry, recs in groups.items():
+        forward = t = expd = None
+        points: list[tuple[float, float]] = []
+        for rec in recs:
+            F, K = rec.fields.get(f_col), rec.fields.get(k_col)
+            iv, typ = rec.fields.get(iv_col), str(rec.fields.get(type_col, "")).strip().upper()
+            if F:
+                forward = F
+            if rec.fields.get(t_col) is not None:
+                t = rec.fields.get(t_col)
+            if rec.fields.get(expd_col) is not None:
+                expd = rec.fields.get(expd_col)
+            if not (F and K and iv):
+                continue
+            m = K / F
+            is_call = typ.startswith("C") or typ in ("1", "買權")
+            # keep the OTM side: calls above the forward, puts below.
+            if (m > 1 and is_call) or (m <= 1 and not is_call):
+                points.append((m, iv))
+        points.sort()
+
+        row: dict[str, Any] = {exp_col: expiry}
+        if expd is not None:
+            row[expd_col] = expd
+        if t is not None:
+            row[t_col] = t
+        if forward is not None:
+            row[f_col] = round(forward, 2)
+        for lvl in levels:
+            # "{:g}" -> 0.9 / 0.95 / 1 / 1.05 / 1.1 (matches how traders write it)
+            row[f"{lvl:g}"] = _interp(points, lvl)
+        out.append(ScrapeRecord(
+            source_url=recs[0].source_url, scraped_at=recs[0].scraped_at, fields=row,
+        ))
+
+    # term structure top-to-bottom: nearest expiry first (missing t sorts last)
+    out.sort(key=lambda r: (r.fields.get(t_col) is None, r.fields.get(t_col)))
+    return out
+
+
 _STEPS: dict[str, Step] = {
     "strip": _strip,
     "drop_empty": _drop_empty,
@@ -326,6 +417,7 @@ _STEPS: dict[str, Step] = {
     "log_moneyness": _log_moneyness,
     "implied_vol": _implied_vol,
     "vega": _vega,
+    "vol_surface_grid": _vol_surface_grid,
 }
 
 
