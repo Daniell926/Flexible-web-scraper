@@ -349,6 +349,13 @@ def _vol_surface_grid(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecor
           expiry: expiry        # group key (one row per distinct value)
           t: t_years            # passthrough + sort key
           expiry_date: expiry_date
+          snap: false           # true = use the nearest REAL strike's IV (no interpolation)
+          show_strikes: false   # true = also emit the actual strike used per column
+
+    With `snap: true` each cell is the implied vol of an ACTUAL listed contract --
+    the strike nearest to moneyness x forward -- instead of a value interpolated
+    between two strikes. `show_strikes: true` adds a `<level>_K` column naming the
+    real strike each cell came from, so the mapping is auditable.
     """
     arg = arg or {}
     levels = [float(x) for x in (arg.get("moneyness") or [0.90, 0.95, 1.00, 1.05, 1.10])]
@@ -359,6 +366,8 @@ def _vol_surface_grid(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecor
     exp_col = arg.get("expiry", "expiry")
     t_col = arg.get("t", "t_years")
     expd_col = arg.get("expiry_date", "expiry_date")
+    snap = bool(arg.get("snap", False))
+    show_strikes = bool(arg.get("show_strikes", False))
 
     # group rows by expiry, preserving first-seen order
     groups: dict[Any, list[ScrapeRecord]] = {}
@@ -368,7 +377,7 @@ def _vol_surface_grid(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecor
     out: list[ScrapeRecord] = []
     for expiry, recs in groups.items():
         forward = t = expd = None
-        points: list[tuple[float, float]] = []
+        points: list[tuple[float, float, Any]] = []  # (moneyness, iv, strike)
         for rec in recs:
             F, K = rec.fields.get(f_col), rec.fields.get(k_col)
             iv, typ = rec.fields.get(iv_col), str(rec.fields.get(type_col, "")).strip().upper()
@@ -384,7 +393,7 @@ def _vol_surface_grid(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecor
             is_call = typ.startswith("C") or typ in ("1", "買權")
             # keep the OTM side: calls above the forward, puts below.
             if (m > 1 and is_call) or (m <= 1 and not is_call):
-                points.append((m, iv))
+                points.append((m, iv, K))
         points.sort()
 
         row: dict[str, Any] = {exp_col: expiry}
@@ -396,7 +405,15 @@ def _vol_surface_grid(records: list[ScrapeRecord], arg: Any) -> list[ScrapeRecor
             row[f_col] = round(forward, 2)
         for lvl in levels:
             # "{:g}" -> 0.9 / 0.95 / 1 / 1.05 / 1.1 (matches how traders write it)
-            row[f"{lvl:g}"] = _interp(points, lvl)
+            label = f"{lvl:g}"
+            if snap:
+                # nearest ACTUAL listed strike to moneyness x forward -> its real IV
+                nearest = min(points, key=lambda p: abs(p[0] - lvl)) if points else None
+                row[label] = nearest[1] if nearest else None
+                if show_strikes:
+                    row[f"{label}_K"] = nearest[2] if nearest else None
+            else:
+                row[label] = _interp([(m, iv) for m, iv, _ in points], lvl)
         out.append(ScrapeRecord(
             source_url=recs[0].source_url, scraped_at=recs[0].scraped_at, fields=row,
         ))

@@ -1,0 +1,41 @@
+# TAIEX (TXO) vol surface grid -- ACTUAL-STRIKE version (no interpolation).
+#
+# Same expiry x moneyness layout as taiex_vol_grid, but each cell is the implied
+# vol of a REAL listed contract: the strike nearest to (moneyness x forward),
+# snapped to the actual TAIFEX strike ladder. `show_strikes: true` adds a
+# `<level>_K` column next to each so you can see exactly which strike was used.
+#
+# Use this when you want every number to trace to a tradeable contract; use
+# taiex_vol_grid when you want smooth values at exact moneyness (interpolated).
+#
+# Run it:  python -m scraper taiex_vol_grid_actual
+name: taiex_vol_grid_actual
+type: taifex
+url: https://www.taifex.com.tw/cht/3
+
+api:
+  date: latest
+
+options:
+  processing:
+    - implied_vol:
+        price: settlement
+        forward: forward
+        strike: strike
+        type: option_type
+        t: t_years
+        rate: 0.015
+        as: iv
+    - vol_surface_grid:
+        moneyness: [0.80, 0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15, 1.20]
+        forward: forward
+        strike: strike
+        iv: iv
+        type: option_type
+        expiry: expiry
+        t: t_years
+        expiry_date: expiry_date
+        snap: true            # use the nearest real strike's IV (no interpolation)
+        show_strikes: true    # also emit the actual strike used per column
+
+output: output/taiex_vol_grid_actual.xlsx
